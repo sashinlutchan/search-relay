@@ -1,9 +1,0 @@
-encryptionsalt: v1:2kCrjddwNl8=:v1:Wn8c21mhadgtXYWz:Bjybo7V919LZBmftoxgVF8la3W0CMw==
-config:
-   aws:region: af-south-1
-   app:stage: staging
-   app:databases:
-      - tableName: Products
-        isStreamEnabled: true
-      - tableName: Stock
-        isStreamEnabled: true
