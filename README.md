@@ -42,6 +42,46 @@ This design keeps the architecture **event-driven**, **modular**, and **cost-eff
 
 
 
+🔧 Data Generation Tool (src/app.ts)
+▶️ To Execute run `yarn ts-node src/app.ts`
+
+The app.ts file serves as a comprehensive mock data generator for testing and development purposes. This tool creates realistic electronics catalog and inventory data to populate DynamoDB tables with structured test data.
+
+🎯 Purpose
+
+    Generate realistic test data: Creates 25+ real-world tech products with detailed specifications and multiple stock locations
+    Database population: Populates DynamoDB tables (Products and Stock) with structured test data using proper pk/sk patterns
+    Data relationship modeling: Each product has 2 stock items across different warehouse locations
+    Operational simulation: Demonstrates insertions, updates, and queries with realistic business operations
+
+⭐ Key Features
+
+    **Electronics Product Catalog**: Real products like MacBook Pro 16-inch, iPhone 15 Pro Max, Samsung Galaxy S24 Ultra, Sony cameras, PlayStation 5, Xbox Series X
+    **Multi-Location Inventory**: Stock distributed across Main Warehouse, Distribution Center, Store Locations, Online Fulfillment Center
+    **Comprehensive Product Data**: Includes pricing (50-2000), categories (Electronics, Computers, Mobile, Audio, Gaming), manufacturer details, dimensions, weight
+    **Advanced Stock Management**: Quantity tracking, supplier information with ratings, restock dates, min/max thresholds, availability status
+    **Realistic Business Operations**: Updates product prices, stock quantities, supplier ratings, and performs complex queries
+    **Proper DynamoDB Design**: Uses composite keys (pk/sk) for efficient access patterns
+
+📊 Data Structure Generated
+
+    **Products Table**: 
+        - PK: `Product#{productName}`, SK: `Stock#{productName}#{stockId}`
+        - Fields: name, description, price, category, manufacturer, dimensions, tags, metadata, timestamps
+    
+    **Stock Table**: 
+        - PK: `Stock#{productName}#{stockId}`, SK: `Stock` 
+        - Fields: stockId (UUID), quantity, location, supplier details, thresholds, availability
+    
+    **Sample Products**: MacBook Pro, iPhone, Samsung Galaxy, Sony headphones, Logitech mouse, gaming keyboards, cameras, drones, tablets, smartwatches
+
+This tool is essential for:
+
+    Testing the Search Relay pipeline with realistic electronics inventory data
+    Validating DynamoDB Streams and Event Pipes functionality with proper key structures  
+    Ensuring data transformation handles complex nested objects (suppliers, dimensions, metadata)
+    Performance testing with 50+ records (25 products × 2 stock locations each)
+    Demonstrating real-world e-commerce inventory management scenarios
 
 
 🚀 Getting Started
@@ -78,6 +118,16 @@ For the CI/CD pipeline to work, configure the following secrets in your GitHub r
 📚 Configuration Parameters Explained
 
 Purpose: This configuration controls how the Search Relay system manages DynamoDB tables and their streams based on your existing infrastructure.
+
+### Steps
+
+#### Step 1  -  Ensure you have install the pulumi cli 
+#### Step 2  -  Login to AWS S3 bucket to store state  using pulumi login s3://{bucketName}
+#### Step 3  -  Run pulumi stack init  and follow the cmds 
+#### Step 4  -  Configure env variables in  stack yaml file  by running pulumi config set app:stage dev
+
+
+#### Env varibles example below 
 
 isStreamEnabled Parameter:
 
