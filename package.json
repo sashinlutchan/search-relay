@@ -1,0 +1,41 @@
+{
+   "name": "search-relay",
+   "main": "src/index.ts",
+   "scripts": {
+      "build": "rm -rf bin && tsc",
+      "build:win": "tsc",
+      "preview": "pulumi preview --suppress-outputs --yes",
+      "deploy": "yarn build && pulumi up --suppress-outputs --yes",
+      "deploy:win": "yarn build:win & pulumi up --suppress-outputs --yes",
+      "destroy": "pulumi destroy  --suppress-outputs --yes",
+      "pretty": "prettier --write ."
+   },
+   "devDependencies": {
+      "@types/assert": "^1.5.11",
+      "@types/aws-lambda": "^8.10.150",
+      "@types/node": "^18",
+      "prettier": "^3.5.3",
+      "typescript": "^5.0.0"
+   },
+   "dependencies": {
+      "@aws-sdk/client-dynamodb": "^3.830.0",
+      "@aws-sdk/client-secrets-manager": "^3.830.0",
+      "@aws-sdk/client-sqs": "^3.828.0",
+      "@aws-sdk/credential-provider-node": "^3.828.0",
+      "@aws-sdk/lib-dynamodb": "^3.830.0",
+      "@aws-sdk/util-dynamodb": "^3.830.0",
+      "@opensearch-project/opensearch": "^3.5.1",
+      "@pulumi/aws": "^6.0.0",
+      "@pulumi/awsx": "^2.0.2",
+      "@pulumi/pulumi": "^3.113.0",
+      "assert": "^2.1.0",
+      "aws-lambda": "^1.0.7",
+      "ts-node": "^10.9.2",
+      "uuid": "^11.1.0",
+      "winston": "^3.17.0"
+   },
+   "version": "1.0.0",
+   "repository": "https://github.com/babysash005/search-relay.git",
+   "author": "babysash005 <sashindevbuilds@gmail.com>",
+   "license": "MIT"
+}

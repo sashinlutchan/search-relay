@@ -1,0 +1,85 @@
+name: build-release-staging
+
+on:
+   push:
+      branches:
+         - 'develop'
+
+jobs:
+   build:
+      runs-on: ubuntu-latest
+      env:
+         NODE_VERSION: '22'
+
+      steps:
+         - name: Checkout code
+           uses: actions/checkout@v3
+
+         - name: Set up Node.js
+           uses: actions/setup-node@v4
+           with:
+              node-version: ${{ env.NODE_VERSION }}
+
+         - name: Install yarn
+           run: corepack enable yarn
+
+         - name: Install dependencies
+           run: yarn install
+
+         - name: Build the project
+           run: yarn build
+
+   deploy:
+      runs-on: ubuntu-latest
+      needs: build
+      if: startsWith(github.ref, 'refs/heads/develop')
+      env:
+         NODE_VERSION: 'lts/*'
+         AWS_REGION: ${{ secrets.AWS_REGION }}
+         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_STAGING }}
+         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_STAGING }}
+         PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+         PULUMI_CONFIG_PASSPHRASE: ''
+
+      steps:
+         - name: Checkout code
+           uses: actions/checkout@v3
+
+         - name: Set up Node.js
+           uses: actions/setup-node@v4
+           with:
+              node-version: ${{ env.NODE_VERSION }}
+
+         - name: Install yarn
+           run: corepack enable yarn
+
+         - name: Install dependencies
+           run: yarn install
+
+         - name: Install Pulumi
+           run: |
+              curl -fsSL https://get.pulumi.com | sh
+              export PATH=$PATH:$HOME/.pulumi/bin
+
+         - name: Configure AWS credentials
+           run: |
+              mkdir -p ~/.aws
+              echo "[default]" > ~/.aws/credentials
+              echo "aws_access_key_id=${{ env.AWS_ACCESS_KEY_ID }}" >> ~/.aws/credentials
+              echo "aws_secret_access_key=${{ env.AWS_SECRET_ACCESS_KEY }}" >> ~/.aws/credentials
+              echo "region=${{ env.AWS_REGION }}" >> ~/.aws/credentials
+
+         - name: Login to Pulumi Using Access Token
+           run: pulumi login
+
+         - name: Pull Latest State Of Stack
+           run: pulumi login s3://${{ secrets.PULUMI_STATE_BUCKET }}
+
+         - name: Select Pulumi stack
+           run: pulumi stack select staging
+
+         - name: Refresh Pulumi stack
+           run: pulumi refresh --yes
+
+         - name: Deploy Stack
+           run: yarn deploy
