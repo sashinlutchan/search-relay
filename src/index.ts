@@ -116,14 +116,15 @@ export = async () => {
 
       const queueName = `${dbConfig.tableName.toUpperCase()}-queue`
       const queue = new Sqs(queueName, stage)
+         .createDLQ(queueName, stage)
          .createQueue(queueName, stage, 120)
          .createEventPipePolicy(table)
          .build()
 
       new EventPipe(`${dbConfig.tableName.toLowerCase()}-pipe-${stage}`, stage)
          .createRole()
-         .createPolicy(table, queue.arn)
-         .createPipe(table, queue.arn)
+         .createPolicy(table, queue.queue.arn)
+         .createPipe(table, queue.queue.arn)
 
       new EventSourceMapping(
          `${stage}-${dbConfig.tableName}-mapping`,
@@ -131,7 +132,7 @@ export = async () => {
          {
             batchSize: 10,
             enabled: true,
-            eventSourceArn: queue.arn,
+            eventSourceArn: queue.queue.arn,
             functionName: processRecords.lambda.arn,
          },
       )

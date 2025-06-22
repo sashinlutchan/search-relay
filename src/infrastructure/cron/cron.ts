@@ -5,7 +5,7 @@ import { assert } from 'console'
 export type CronArgs = {
    name: string
    schedule: string
-   lambdaArn:  aws.lambda.CallbackFunction<any, any>
+   lambdaArn: aws.lambda.CallbackFunction<any, any>
    enabled: boolean
    description: string
    opts?: ComponentResourceOptions
@@ -24,14 +24,14 @@ export class Cron extends ComponentResource {
       this.registerOutputs({})
    }
 
-   createCron(
-   ): this {
+   createCron(): this {
       this.cron = new aws.cloudwatch.EventRule(
          this.args.name,
          {
             description: this.args.description,
             scheduleExpression: this.args.schedule,
-            name: `${this.args.name}-cron`,
+            name: this.args.name,
+            isEnabled: this.args.enabled,
          },
          this.opts,
       )
@@ -39,45 +39,46 @@ export class Cron extends ComponentResource {
       return this
    }
 
-   createTarget(
-   ): this {
-         this.target = new aws.cloudwatch.EventTarget(
-            this.args.name,
-            {
-               rule: this.args.name,
-               arn: this.args.lambdaArn.arn,
-            },
-            this.opts,
-         )
+   createTarget(): this {
+      if (!this.cron) {
+         throw new Error('Cron rule must be created before target')
+      }
+
+      this.target = new aws.cloudwatch.EventTarget(
+         this.args.name,
+         {
+            rule: this.cron.name,
+            arn: this.args.lambdaArn.arn,
+         },
+         { ...this.opts, dependsOn: [this.cron] },
+      )
 
       return this
    }
 
-   allowCronToInvokeLambda(
-   ): this {
-     new aws.iam.Policy(
-         this.args.name,
+   allowCronToInvokeLambda(): this {
+      if (!this.cron) {
+         throw new Error('Cron rule must be created before permissions')
+      }
+
+      new aws.lambda.Permission(
+         `${this.args.name}-permission`,
          {
-            name: this.args.name,
-            policy: JSON.stringify({
-               Version: '2012-10-17',
-               Statement: [
-                  {
-                     Action: 'lambda:InvokeFunction',
-                     Effect: 'Allow',
-                     Resource: '*',
-                  },
-               ],
-            }),
+            action: 'lambda:InvokeFunction',
+            function: this.args.lambdaArn.name,
+            principal: 'events.amazonaws.com',
+            sourceArn: this.cron.arn,
          },
-         this.opts,
+         { ...this.opts, dependsOn: [this.cron] },
       )
 
       return this
    }
 
    build(): aws.cloudwatch.EventRule {
-      assert(this.cron, 'Cron not created yet')
-      return this.cron!
+      if (!this.cron) {
+         throw new Error('Cron not created yet')
+      }
+      return this.cron
    }
 }
