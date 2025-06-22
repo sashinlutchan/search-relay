@@ -13,8 +13,9 @@ export const handler = async (event: Input) => {
    logger.info('Query OpenSearch handler', {
       event,
    })
+   
    if (!event.query) {
-      logger.warn('No query in body provided in request', {
+      logger.error('No query in body provided in request', {
          eventKeys: Object.keys(event),
          bodyType: typeof event,
       })

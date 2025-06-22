@@ -9,13 +9,14 @@ export class DataRepository implements DataService {
       this.client = opensearchClient
    }
 
-   async create(tableName: string, id: string, data: object): Promise<void> {
+   async create(tableName: string, id: string, data: object): Promise<boolean> {
       await this.client.index({
          index: tableName,
          id: id,
          body: data,
          refresh: 'wait_for',
       })
+      return true
    }
 
    async get<T>(tableName: string, id: string): Promise<T> {

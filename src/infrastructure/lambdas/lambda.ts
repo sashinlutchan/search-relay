@@ -9,16 +9,19 @@ export class Lambda extends pulumi.ComponentResource {
    private lambdaRole!: aws.iam.Role
    private sqsPolicy!: aws.iam.Policy
    private defaultArgs!: aws.lambda.CallbackFunctionArgs<any, any>
+   private secretsManagerPolicy!: aws.iam.Policy
+   private region: string
 
    constructor(
       name: string,
+      region: string,
       stage: string,
       defaultArgs: aws.lambda.CallbackFunctionArgs<any, any>,
    ) {
       super(`${name}-lambda`, name)
       this.name = name
       this.stage = stage
-
+      this.region = region
       this.defaultArgs = defaultArgs
    }
 
@@ -27,10 +30,8 @@ export class Lambda extends pulumi.ComponentResource {
       handler: any,
       reservedConcurrentExecutions?: number,
    ): this {
-      // If reservedConcurrentExecutions is provided but less than 20, set it to undefined
-      // This ensures we maintain at least 10 unreserved executions for the account
       const concurrency =
-         reservedConcurrentExecutions && reservedConcurrentExecutions < 20
+         reservedConcurrentExecutions && reservedConcurrentExecutions !== null
             ? undefined
             : reservedConcurrentExecutions
 
@@ -39,7 +40,6 @@ export class Lambda extends pulumi.ComponentResource {
          ...this.defaultArgs,
          callback: handler,
          role: this.lambdaRole.arn,
-         // Only set reservedConcurrentExecutions if it's explicitly provided and >= 20
          ...(concurrency && { reservedConcurrentExecutions: concurrency }),
       })
 
@@ -91,6 +91,7 @@ export class Lambda extends pulumi.ComponentResource {
       return this
    }
 
+
    createSqsPolicy(stage: string, name: string): this {
       this.sqsPolicy = new aws.iam.Policy(
          `${stage}-${name}-sqs-access-policy`,
@@ -125,7 +126,7 @@ export class Lambda extends pulumi.ComponentResource {
    }
 
    createOpensearchPolicy(stage: string, policyName: string): this {
-      new aws.iam.RolePolicy(`${stage}-${this.name}-${policyName}-aurora`, {
+      new aws.iam.RolePolicy(`${stage}-${this.name}-${policyName}-opensearch`, {
          role: this.lambdaRole.id,
          policy: JSON.stringify({
             Version: '2012-10-17',
@@ -137,32 +138,10 @@ export class Lambda extends pulumi.ComponentResource {
                      'es:ESHttpPut',
                      'es:ESHttpPost',
                      'es:ESHttpDelete',
+                     'es:ESHttpHead',
+                     'es:ESHttpAny',
                   ],
-                  Resource: '*',
-               },
-            ],
-         }),
-      })
-
-      return this
-   }
-
-   grantVpcAccess(): this {
-      new aws.iam.RolePolicy(`${this.stage}-${this.name}-vpc-access`, {
-         role: this.lambdaRole.id,
-         policy: JSON.stringify({
-            Version: '2012-10-17',
-            Statement: [
-               {
-                  Effect: 'Allow',
-                  Action: [
-                     'ec2:CreateNetworkInterface',
-                     'ec2:DescribeNetworkInterfaces',
-                     'ec2:DeleteNetworkInterface',
-                     'ec2:AssignPrivateIpAddresses',
-                     'ec2:UnassignPrivateIpAddresses',
-                  ],
-                  Resource: '*',
+                  Resource: "*",
                },
             ],
          }),

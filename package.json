@@ -5,8 +5,8 @@
       "build": "rm -rf bin && tsc",
       "build:win": "tsc",
       "preview": "pulumi preview --suppress-outputs --yes",
-      "deploy": "pnpm build && pulumi up --suppress-outputs --yes",
-      "deploy:win": "pnpm build:win & pulumi up --suppress-outputs --yes",
+      "deploy": "yarn build && pulumi up --suppress-outputs --yes",
+      "deploy:win": "yarn build:win & pulumi up --suppress-outputs --yes",
       "destroy": "pulumi destroy  --suppress-outputs --yes",
       "pretty": "prettier --write ."
    },
@@ -18,9 +18,11 @@
       "typescript": "^5.0.0"
    },
    "dependencies": {
+      "@aws-sdk/client-dynamodb": "^3.830.0",
       "@aws-sdk/client-secrets-manager": "^3.830.0",
       "@aws-sdk/client-sqs": "^3.828.0",
       "@aws-sdk/credential-provider-node": "^3.828.0",
+      "@aws-sdk/lib-dynamodb": "^3.830.0",
       "@aws-sdk/util-dynamodb": "^3.830.0",
       "@opensearch-project/opensearch": "^3.5.1",
       "@pulumi/aws": "^6.0.0",
@@ -31,5 +33,9 @@
       "ts-node": "^10.9.2",
       "uuid": "^11.1.0",
       "winston": "^3.17.0"
-   }
+   },
+   "version": "1.0.0",
+   "repository": "https://github.com/babysash005/search-relay.git",
+   "author": "babysash005 <sashindevbuilds@gmail.com>",
+   "license": "MIT"
 }

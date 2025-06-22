@@ -5,8 +5,6 @@ import assert = require('assert')
 export type OpensearchConfig = {
    name: string
    stage: string
-   securityGroup: aws.ec2.SecurityGroup
-   subnets: aws.ec2.Subnet[]
    roleArn: string
 }
 
@@ -14,36 +12,26 @@ export class Opensearch extends pulumi.ComponentResource {
    private stage: string
    private name: string
    domain: aws.opensearch.Domain | null = null
-   private securityGroup: aws.ec2.SecurityGroup | null = null
-   private subnets: aws.ec2.Subnet[] = []
-   private username: string
-   private password: string
+   private accountId: string
 
    constructor(
       name: string,
       stage: string,
-      securityGroup: aws.ec2.SecurityGroup,
-      subnets: aws.ec2.Subnet[],
-      username: string,
-      password: string,
+      accountId: string,
    ) {
       super(`${name}-opensearch`, `${name}-opensearch`, {})
       this.stage = stage
       this.name = name
-      this.username = username
-      this.password = password
-      this.securityGroup = securityGroup
-      this.subnets = subnets
+      this.accountId = accountId
    }
 
    createDomain(): this {
-      assert(this.securityGroup, 'Security group must be created before domain')
-      assert(this.subnets.length > 0, 'Subnets must be created before domain')
-
       this.domain = new aws.opensearch.Domain(
          `${this.name}-domain`,
          {
+            domainName: `${this.stage}-${this.name}`,
             engineVersion: 'OpenSearch_2.11',
+            
             clusterConfig: {
                instanceType: 't3.small.search',
                instanceCount: 1,
@@ -54,10 +42,6 @@ export class Opensearch extends pulumi.ComponentResource {
                volumeSize: 10,
                volumeType: 'gp2',
             },
-            vpcOptions: {
-               securityGroupIds: [this.securityGroup.id],
-               subnetIds: this.subnets.map((subnet) => subnet.id),
-            },
             nodeToNodeEncryption: {
                enabled: true,
             },
@@ -65,29 +49,77 @@ export class Opensearch extends pulumi.ComponentResource {
                enabled: true,
             },
             advancedSecurityOptions: {
-               enabled: true,
-               internalUserDatabaseEnabled: false,
-               masterUserOptions: {
-                  masterUserName: this.username,
-                  masterUserPassword: this.password,
-               },
+               enabled: false, 
             },
+            domainEndpointOptions: {
+               enforceHttps: true,
+               tlsSecurityPolicy: "Policy-Min-TLS-1-2-2019-07",
+            },
+            accessPolicies: JSON.stringify({
+               Version: '2012-10-17',
+               Statement: [
+                  {
+                     Effect: 'Allow',
+                     Principal: {
+                        AWS: [
+                           `arn:aws:iam::${this.accountId}:role/${this.stage}-query-role`,
+                           `arn:aws:iam::${this.accountId}:role/${this.stage}-process-records-role`,
+                           `arn:aws:iam::${this.accountId}:role/${this.stage}-purge-records-role`
+                        ]
+                     },
+                     Action: 'es:*',
+                     Resource: '*'
+                  }
+               ]
+            }),
             tags: {
-               Name: `${name}-opensearch`,
+               Name: `${this.name}-opensearch`,
                Environment: this.stage,
             },
          },
-         { parent: this, dependsOn: [this.securityGroup, ...this.subnets] },
+         { parent: this },
       )
+      return this
+   }
+
+
+   configureLambdaAccess(): this {
+      if (!this.domain) {
+         throw new Error('Domain must be created before configuring access')
+      }
+
+      new aws.opensearch.DomainPolicy(`${this.stage}-all-access-policy`, {
+         domainName: this.domain.domainName,
+         accessPolicies: JSON.stringify({
+            Version: '2012-10-17',
+            Statement: [
+               {
+                  Effect: 'Allow',
+                  Principal: {
+                     AWS: [
+                        `arn:aws:iam::${this.accountId}:role/${this.stage}-query-role`,
+                        `arn:aws:iam::${this.accountId}:role/${this.stage}-process-records-role`,
+                        `arn:aws:iam::${this.accountId}:role/${this.stage}-purge-records-role`
+                     ]
+                  },
+                  Action: 'es:*',
+                  Resource: `${this.domain.arn}/*`
+               }
+            ]
+         })
+      }, { parent: this, dependsOn: [this.domain] })
+
       return this
    }
 
    public build(): {
       domain: aws.opensearch.Domain
+      opensearch: Opensearch
    } {
       assert(this.domain, 'Domain must be created before build')
       return {
          domain: this.domain,
+         opensearch: this,
       }
    }
 }

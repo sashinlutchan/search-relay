@@ -1,80 +1,76 @@
 import { ComponentResource, ComponentResourceOptions } from '@pulumi/pulumi'
-import * as pulumi from '@pulumi/pulumi'
 import * as aws from '@pulumi/aws'
 import { assert } from 'console'
 
 export type CronArgs = {
    name: string
    schedule: string
-   target: pulumi.Output<string>
+   lambdaArn:  aws.lambda.CallbackFunction<any, any>
    enabled: boolean
+   description: string
+   opts?: ComponentResourceOptions
 }
 
 export class Cron extends ComponentResource {
    private cron: aws.cloudwatch.EventRule | undefined
    private target: aws.cloudwatch.EventTarget | undefined
+   private args: CronArgs
+   private opts: ComponentResourceOptions
 
-   constructor(name: string, args: CronArgs, opts?: ComponentResourceOptions) {
-      super(`${name}-cron`, name, args, opts)
+   constructor(name: string, stage: string, args: CronArgs, opts?: ComponentResourceOptions) {
+      super(`${stage}-${name}-cron`, name, args, opts)
+      this.args = args
+      this.opts = opts || {}
       this.registerOutputs({})
    }
 
    createCron(
-      name: string,
-      args: CronArgs,
-      opts?: ComponentResourceOptions,
    ): this {
       this.cron = new aws.cloudwatch.EventRule(
-         name,
+         this.args.name,
          {
-            scheduleExpression: args.schedule,
-            name: `${name}-cron`,
+            description: this.args.description,
+            scheduleExpression: this.args.schedule,
+            name: `${this.args.name}-cron`,
          },
-         opts,
+         this.opts,
       )
 
       return this
    }
 
    createTarget(
-      name: string,
-      args: CronArgs,
-      opts?: ComponentResourceOptions,
    ): this {
-      this,
-         (this.target = new aws.cloudwatch.EventTarget(
-            name,
+         this.target = new aws.cloudwatch.EventTarget(
+            this.args.name,
             {
-               rule: args.name,
-               arn: args.target,
+               rule: this.args.name,
+               arn: this.args.lambdaArn.arn,
             },
-            opts,
-         ))
+            this.opts,
+         )
 
       return this
    }
 
    allowCronToInvokeLambda(
-      name: string,
-      args: CronArgs,
-      opts?: ComponentResourceOptions,
    ): this {
-      const policy = new aws.iam.Policy(
-         name,
+     new aws.iam.Policy(
+         this.args.name,
          {
-            name,
+            name: this.args.name,
             policy: JSON.stringify({
                Version: '2012-10-17',
                Statement: [
                   {
                      Action: 'lambda:InvokeFunction',
                      Effect: 'Allow',
-                     Resource: args.target,
+                     Resource: '*',
                   },
                ],
             }),
          },
-         opts,
+         this.opts,
       )
 
       return this

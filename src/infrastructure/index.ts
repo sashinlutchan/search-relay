@@ -1,5 +1,4 @@
 export * from './dynamodb/dynamodb'
-export * from './vpc/vpc'
 export * from './lambdas/lambda'
 export * from './sqs/sqs'
 export * from './cron/cron'

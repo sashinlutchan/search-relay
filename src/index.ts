@@ -1,15 +1,14 @@
 import * as pulumi from '@pulumi/pulumi'
 import * as aws from '@pulumi/aws'
-import * as awsx from '@pulumi/awsx'
 import { DatabaseConfig } from './types'
 import {
+   Cron,
    Dynamodb,
    EventPipe,
    EventSourceMapping,
    Lambda,
    Opensearch,
    Sqs,
-   Vpc,
 } from './infrastructure'
 import assert = require('assert')
 import {
@@ -27,42 +26,22 @@ export = async () => {
    const region = aws.config.requireRegion()
    const databases = config.requireObject<DatabaseConfig[]>('databases')
 
-   const openSearchSecret = await aws.secretsmanager.getSecret({
-      name: `${stage}/opensearch/secret`,
-   })
-
-   const openSearchSecretValue = await aws.secretsmanager.getSecretVersion({
-      secretId: openSearchSecret.id,
-   })
-
-   assert(
-      openSearchSecretValue.secretString,
-      'OpenSearch secret must be created before build',
-   )
-   const secretData = JSON.parse(openSearchSecretValue.secretString)
-   const openSearchUsername = secretData.username
-   const openSearchPassword = secretData.password
-
-   const vpc = new Vpc('vpc', stage)
-      .createVpc('10.0.0.0/16')
-      .createSubnets('10.0.0.0/24', 3)
-      .createSecurityGroup('0.0.0.0/0', '0.0.0.0/0')
-      .createSubnetGroup()
-      .build()
-
    const opensearch = new Opensearch(
-      'opensearch',
+      'search-relay',
       stage,
-      vpc.securityGroup,
-      vpc.subnets,
-      openSearchUsername,
-      openSearchPassword,
+      accountId,
    )
+   .createDomain()
+   .configureLambdaAccess()
+   .build()
+
+
 
    const defaultLambdaArgs = {
       memorySize: 1024,
       timeout: 120,
       runtime: Runtime.NodeJS22dX,
+      
       tracingConfig: {
          mode: 'Active',
       },
@@ -70,7 +49,6 @@ export = async () => {
       environment: {
          variables: {
             STAGE: stage,
-            OPENSEARCH_SECRET: `${stage}/opensearch/secret`,
             OPENSEARCH_ENDPOINT: opensearch.domain?.endpoint || '',
             region: region,
             QUEUE_URLS: databases
@@ -86,8 +64,9 @@ export = async () => {
       },
    }
 
-   const queryOpensearch = new Lambda(
+   const query = new Lambda(
       'query-opensearch',
+      region,
       stage,
       defaultLambdaArgs,
    )
@@ -100,6 +79,7 @@ export = async () => {
 
    const processRecords = new Lambda(
       'process-records',
+      region,
       stage,
       defaultLambdaArgs,
    )
@@ -110,7 +90,7 @@ export = async () => {
       .createLambda(stage, processRecordsHandler.handler, 10)
       .build()
 
-   const purgeRecords = new Lambda('purge-records', stage, defaultLambdaArgs)
+   const purgeRecords = new Lambda('purge-records', region, stage, defaultLambdaArgs)
       .createRole(stage, 'purge-records-role')
       .grantBasicExecution()
       .createOpensearchPolicy(stage, 'purge-records-opensearch')
@@ -159,12 +139,26 @@ export = async () => {
          .build()
    }
 
+
+   const purgeCron  = new Cron('purge-records-cron', stage, {
+      schedule: 'cron(0 0 1 * ? *)',
+      name: 'purge-records-cron',
+      description: 'Purge records cron job',
+      enabled: true,
+      lambdaArn: purgeRecords.lambda,
+   })
+   .createCron()
+   .createTarget()
+   .allowCronToInvokeLambda()
+      .build()
+
    return {
       opensearch: opensearch.domain,
       lambdas: {
-         queryOpensearch: queryOpensearch.lambda.arn,
+         queryOpensearch: query.lambda.arn,
          processRecords: processRecords.lambda.arn,
          purgeRecords: purgeRecords.lambda.arn,
       },
+      cron: purgeCron.arn
    }
 }

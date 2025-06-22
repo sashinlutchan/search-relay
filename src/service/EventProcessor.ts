@@ -22,7 +22,7 @@ export class EventProcessor implements ProcessorService {
    }
 
    async process(event: SQSEvent): Promise<void> {
-      if (event.Records.length === 0) {
+      if (!event.Records) {
          logger.info('No records to process')
          return
       }
@@ -66,19 +66,20 @@ export class EventProcessor implements ProcessorService {
 
             assert(queueUrl, 'No queue URL found for table')
 
-            await this.dataService.create(
+            const save = await this.dataService.create(
                tableName.toLowerCase(),
                flattenedData.pk,
                flattenedData,
             )
+
+            if (save) {
+               await this.sqsService.deleteMessage(queueUrl, sqsRecord.receiptHandle)
+            }
          } catch (recordError) {
             logger.error('Failed to process individual record', {
                item: sqsRecord,
                messageId: sqsRecord.messageId,
-               error:
-                  recordError instanceof Error
-                     ? recordError.message
-                     : 'Unknown error',
+               error: recordError,
                stack:
                   recordError instanceof Error ? recordError.stack : undefined,
             })
@@ -99,27 +100,31 @@ export class EventProcessor implements ProcessorService {
       const tables = TABLES?.split(',')
 
       for (const table of tables) {
-         const sixMonthsAgo = new Date()
-         sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
+         try {
+            const setSixMonthsAgo = new Date()
+            setSixMonthsAgo.setMonth(setSixMonthsAgo.getMonth() - 6)
+           
 
-         const query = {
-            index: table,
-            body: {
-               query: {
-                  range: {
-                     timestamp: {
-                        lt: sixMonthsAgo,
-                     },
+          
+            const query = {
+               range: {
+                  event_timestamp: {
+                     lt: setSixMonthsAgo.toISOString(),
                   },
                },
-            },
-            refresh: true,
-            conflicts: 'proceed',
-            slices: 'auto',
-            requests_per_second: 100,
-         }
+            }
 
-         await this.dataService.deleteByQuery(table, query)
+            await this.dataService.deleteByQuery(table, query)
+            
+            logger.info('Successfully purged old records', { table })
+         } catch (error) {
+            logger.error('Failed to purge records from table', {
+               table,
+               error: error instanceof Error ? error.message : 'Unknown error',
+               stack: error instanceof Error ? error.stack : undefined,
+            })
+         
+         }
       }
    }
 
